@@ -3,16 +3,20 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const app = express();
 
-// মূল পেজ (Home Route)
-app.get('/', (req, res) => {
-    res.send("My API is Running on Vercel!");
-});
+app.get('/', (req, res) => res.send("MyInstants API is Running!"));
 
-// আপনার মেইন API
 app.get('/api/instants', async (req, res) => {
     try {
-        const url = 'https://www.myinstants.com/en/index/bd/'; 
+        const query = req.query.query; // সার্চ কুয়েরি নেওয়া
         const baseUrl = 'https://www.myinstants.com';
+        let url;
+
+        // যদি কুয়েরি থাকে তবে সার্চ পেজে যাবে, না থাকলে হোমপেজে
+        if (query) {
+            url = `https://www.myinstants.com/search/?name=${encodeURIComponent(query)}`;
+        } else {
+            url = 'https://www.myinstants.com/en/index/bd/';
+        }
 
         const { data } = await axios.get(url);
         const $ = cheerio.load(data);
@@ -39,11 +43,12 @@ app.get('/api/instants', async (req, res) => {
             return res.json({ status: false, message: "No sounds found" });
         }
 
+        // সার্চ রেজাল্ট থেকে র্যানডম একটি সাউন্ড পাঠানো
         const randomSound = sounds[Math.floor(Math.random() * sounds.length)];
         
         res.json({
             status: true,
-            author: "RAFI",
+            search_term: query || "random",
             result: randomSound
         });
 
@@ -52,6 +57,4 @@ app.get('/api/instants', async (req, res) => {
     }
 });
 
-// ⚠️ গুরত্বপূর্ণ: app.listen কেটে দিন এবং এই লাইনটি লিখুন
 module.exports = app;
-  
