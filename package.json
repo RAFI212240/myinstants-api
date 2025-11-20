@@ -1,15 +1,17 @@
 {
   "name": "myinstants-api",
   "version": "1.0.0",
-  "description": "MyInstants API for WhatsApp Bot",
+  "description": "My custom API on Vercel",
+  "main": "index.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node index.js"
   },
   "dependencies": {
-    "axios": "^1.4.0",
-    "cheerio": "^1.0.0-rc.12"
+    "axios": "^1.6.0",
+    "cheerio": "^1.0.0",
+    "express": "^4.18.2"
   },
   "engines": {
-    "node": "22.x"
+    "node": "20.x"
   }
 }
