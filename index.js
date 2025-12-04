@@ -1,14 +1,13 @@
 const express = require('express');
 const axios = require('axios');
-const cheerio = require('cheerio');
-const FormData = require('form-data');
-
 const app = express();
 
-// হোম রুট
-app.get('/', (req, res) => res.send("FB Cover Photo API is Running!"));
+// আপনার অ্যাপ টোকেন (এটি cover.js থেকে নেওয়া হয়েছে)
+// এটি পরিবর্তন হলে আপনি এখানে নতুন টোকেন দিতে পারেন
+const ACCESS_TOKEN = "6628568379|c1e620fa708a1d5696fb991c1bde5662";
 
-// API রুট: /api/cover?url=FACEBOOK_PROFILE_LINK
+app.get('/', (req, res) => res.send("FB Cover API is Running (Graph Method)!"));
+
 app.get('/api/cover', async (req, res) => {
     try {
         const fbUrl = req.query.url;
@@ -20,89 +19,70 @@ app.get('/api/cover', async (req, res) => {
             });
         }
 
-        // ১. টার্গেট ওয়েবসাইট
-        const targetUrl = 'https://www.fbprofileviewer.com/';
+        // ১. ইউজারনেম বা আইডি বের করা
+        let userID = await getUserID(fbUrl);
 
-        // ২. ফর্ম ডেটা তৈরি করা (ওয়েবসাইটটি যেভাবে চায়)
-        const form = new FormData();
-        form.append('url', fbUrl); // ইনপুট ফিল্ডের নাম 'url'
-
-        // ৩. ওয়েবসাইটে POST রিকোয়েস্ট পাঠানো
-        const response = await axios.post(targetUrl, form, {
-            headers: {
-                ...form.getHeaders(),
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                'Origin': 'https://www.fbprofileviewer.com',
-                'Referer': 'https://www.fbprofileviewer.com/'
-            }
-        });
-
-        // ৪. HTML পার্স করা (Cheerio দিয়ে)
-        const $ = cheerio.load(response.data);
-        
-        // ৫. কভার ফটো খুঁজে বের করা
-        // ওয়েবসাইটটি রেজাল্ট পেজে কভার ফটোটি 'Cover Photo' টেক্সটের নিচে দেখায়
-        // সাধারণত এটি id="result" বা নির্দিষ্ট কোনো div এর মধ্যে থাকে।
-        
-        let coverPhotoUrl = null;
-
-        // ওয়েবসাইটের স্ট্রাকচার অনুযায়ী কভার ফটো খোঁজা
-        // সাধারণত result সেকশনে থাকে এবং 'Download Cover Photo' বাটনের লিংক হতে পারে
-        
-        // মেথড ১: সরাসরি ইমেজ ট্যাগ খোঁজা
-        $('img').each((i, el) => {
-            const src = $(el).attr('src');
-            // কভার ফটোগুলো সাধারণত scontent বা external link হয় এবং profile pic থেকে আলাদা হয়
-            if (src && src.startsWith('http') && !src.includes('logo')) {
-                 // এখানে লজিক হলো সাধারণত ২য় বড় ছবিটি কভার ফটো হয়
-                 // তবে আমরা আরও স্পেসিফিক হতে পারি যদি ক্লাসনেম জানা থাকে।
-                 // এই সাইটে কভার ফটো সাধারণত শেষের দিকে লোড হয়।
-                 coverPhotoUrl = src; 
-            }
-        });
-
-        // মেথড ২ (More Accurate for this site): ডাউনলোড বাটন বা নির্দিষ্ট ক্লাস খোঁজা
-        // এই সাইটটি রেজাল্ট দেখানোর সময় একটি div ব্যবহার করে।
-        // কভার ফটোটি সাধারণত ২য় ইমেজ হিসেবে থাকে (প্রথমটি প্রোফাইল পিকচার)
-        
-        // আমরা সব ইমেজ লিংক নিয়ে একটি অ্যারে বানাই
-        const images = [];
-        $('#result img').each((i, el) => {
-            images.push($(el).attr('src'));
-        });
-
-        // সাধারণত ২য় ছবিটি কভার ফটো হয় (যদি প্রোফাইল এবং কভার দুটোই থাকে)
-        if (images.length >= 2) {
-            coverPhotoUrl = images[1]; 
-        } else if (images.length === 1) {
-            coverPhotoUrl = images[0]; // যদি শুধু একটাই পায়
-        }
-
-        if (!coverPhotoUrl) {
-            return res.json({ 
+        if (!userID) {
+             return res.json({ 
                 status: false, 
-                message: "Cover photo not found or profile is private/invalid." 
+                message: "Could not extract User ID from the URL." 
             });
         }
 
-        // ৬. সফল রেসপন্স
-        res.json({
-            status: true,
-            author: "RAFI",
-            input_url: fbUrl,
-            cover_photo: coverPhotoUrl
-        });
+        // ২. গ্রাফ এপিআই কল করা (কভার ফটো পাওয়ার জন্য)
+        const graphUrl = `https://graph.facebook.com/${userID}?fields=cover&access_token=${ACCESS_TOKEN}`;
+        
+        const response = await axios.get(graphUrl);
+        const data = response.data;
+
+        if (data.cover && data.cover.source) {
+            res.json({
+                status: true,
+                author: "RAFI",
+                id: data.id,
+                cover_photo: data.cover.source
+            });
+        } else {
+            res.json({ 
+                status: false, 
+                message: "No cover photo found or profile is private." 
+            });
+        }
 
     } catch (error) {
-        console.error(error);
+        console.error(error.message);
         res.status(500).json({ 
             status: false, 
-            message: "Server Error or Scraping Failed", 
+            message: "Failed to fetch cover photo.", 
             error: error.message 
         });
     }
 });
 
-// Vercel এর জন্য এক্সপোর্ট
+// হেল্পার ফাংশন: URL থেকে আইডি বের করা
+async function getUserID(url) {
+    try {
+        // যদি সরাসরি আইডি থাকে (যেমন profile.php?id=100...)
+        const idMatch = url.match(/id=(\d+)/);
+        if (idMatch) return idMatch[1];
+
+        // যদি ইউজারনেম থাকে (যেমন facebook.com/zuck)
+        const usernameMatch = url.match(/facebook\.com\/([a-zA-Z0-9.]+)/);
+        if (usernameMatch) {
+            const username = usernameMatch[1];
+            if (username === 'profile.php') return null;
+            
+            // ইউজারনেম থেকে আইডিতে কনভার্ট করা (গ্রাফ এপিআই দিয়ে)
+            // নোট: অ্যাপ টোকেন দিয়ে অনেক সময় ইউজারনেম টু আইডি কনভারশন কাজ নাও করতে পারে
+            // সেক্ষেত্রে আমরা সরাসরি ইউজারনেম ব্যবহার করে দেখবো
+            return username; 
+        }
+        
+        return url; // যদি ইনপুটটাই আইডি হয়
+    } catch (e) {
+        return null;
+    }
+}
+
 module.exports = app;
-                
+        
