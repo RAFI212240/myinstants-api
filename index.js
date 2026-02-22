@@ -7,20 +7,23 @@ app.get('/', (req, res) => res.send("MyInstants API is Running!"));
 
 app.get('/api/instants', async (req, res) => {
     try {
-        const query = req.query.query; // সার্চ কুয়েরি নেওয়া
+        const query = req.query.query;
         const baseUrl = 'https://www.myinstants.com';
         let url;
 
-        // যদি কুয়েরি থাকে তবে সার্চ পেজে যাবে, না থাকলে হোমপেজে
         if (query) {
             url = `https://www.myinstants.com/search/?name=${encodeURIComponent(query)}`;
         } else {
             url = 'https://www.myinstants.com/en/index/bd/';
         }
 
-        const { data } = await axios.get(url);
-        const $ = cheerio.load(data);
+        const { data } = await axios.get(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+        });
         
+        const $ = cheerio.load(data);
         const sounds = [];
 
         $('.instant').each((index, element) => {
@@ -40,16 +43,17 @@ app.get('/api/instants', async (req, res) => {
         });
 
         if (sounds.length === 0) {
-            return res.json({ status: false, message: "No sounds found" });
+            return res.json({ status: false, message: "No sounds found for your query." });
         }
 
-        // সার্চ রেজাল্ট থেকে র্যানডম একটি সাউন্ড পাঠানো
         const randomSound = sounds[Math.floor(Math.random() * sounds.length)];
         
         res.json({
             status: true,
-            search_term: query || "random",
-            result: randomSound
+            search_term: query || "random (homepage)",
+            total_results: sounds.length,
+            random_result: randomSound,
+            results: sounds
         });
 
     } catch (error) {
@@ -58,3 +62,4 @@ app.get('/api/instants', async (req, res) => {
 });
 
 module.exports = app;
+            
